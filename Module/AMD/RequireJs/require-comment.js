@@ -1,0 +1,126 @@
+(function() {
+
+  //存储已经加载好的模块
+  var moduleCache = {};
+
+  var require = function (deps, callback) {
+    var params = [];
+    var depCount = 0;
+    var i, len, isEmpty = false, modName;
+
+    //获取当前正在执行的js代码段，这个在onLoad事件之前执行
+    modName = document.currentScript && document.currentScript.id || 'REQUIRE_MAIN';
+
+    //简单实现，这里未做参数检查，只考虑数组的情况
+    if (deps.length) {
+      for (i = 0, len = deps.length; i < len; i++) {
+        console.info("开始处理模块:" + modName, "循环:", i, " 依赖模块:", deps[i]);
+        //这里为啥用立即执行函数？
+        //使用IFEE是因为要保存当前加载模块时的depCount依赖数
+        (function(i) {
+          //依赖加一
+          depCount++;
+          console.log("%c" + modName, "color:red", "模块依赖数:", depCount, "开始加载依赖模块:", deps[i]);
+          //这块回调很关键
+          loadMod(deps[i], function(param) {
+            params[i] = param;
+            depCount--;
+            console.log("%c" + deps[i] + "模块加载完成回调:", "color:green;font-weight:bold;", modName + "的依赖数:", depCount, "  参数:", params);
+            if (depCount == 0) {
+              console.log("%c" + "依赖都加载完成时saveModule:", "color:green;font-weight:bold;font-size:14px;", modName);
+              saveModule(modName, params, callback);
+            }
+          });
+        })(i);
+      }
+    } else {
+      //必须使用定时器 等当前函数执行完后再执行
+      console.warn("%c添加定时器 saveModule: " + modName, "color:purple");
+      setTimeout(function() {
+        console.warn("%c定时器执行 依赖为空时saveModule: " + modName, "color:purple");
+        saveModule(modName, null, callback);
+      }, 0);
+    }
+
+  };
+
+  //考虑最简单逻辑即可
+  var _getPathUrl = function(modName) {
+    var url = modName;
+    //不严谨
+    if (url.indexOf('.js') == -1) url = url + '.js';
+    return url;
+  };
+
+  //模块加载
+  var loadMod = function(modName, loadCallback) {
+    var url = _getPathUrl(modName),
+      fs, mod;
+
+    //如果该模块已经有了script标签进行加载
+    if (moduleCache[modName]) {
+      mod = moduleCache[modName];
+      if (mod.status == 'loaded') {
+        console.warn("添加定时器:加载完成回调");
+        console.log("%c" + modName, "color:green", "模块已加载完成,参数:", this.params);
+        setTimeout(loadCallback(this.params), 0);
+      } else {
+        console.log("%c" + modName, "color:orange", "模块未加载完成,增加依赖回调");
+        //如果未到加载状态直接往onLoad插入值，在依赖项加载好后会解除依赖
+        //为什么push的是回调？  因为当前模块加载完成后每一个依赖它的都有自己的回调，比如MAIN和math都依赖num，则两个loadCallbck都放入数组
+        mod.onload.push(loadCallback);
+      }
+    } else {
+      /*
+      这里重点说一下Module对象
+      status代表模块状态
+      onLoad事实上对应requireJS的事件回调，该模块被引用多少次就执行多少次回调，通知被依赖项解除依赖
+      */
+      mod = moduleCache[modName] = {
+        modName: modName,
+        status: 'loading',
+        export: null,
+        onload: [loadCallback]
+      };
+
+      _script = document.createElement('script');
+      _script.id = modName;
+      _script.type = 'text/javascript';
+      _script.charset = 'utf-8';
+      _script.async = true;
+      _script.src = url;
+
+      //这段代码在这个场景中意义不大，注释了
+      //      _script.onload = function (e) {};
+
+      fs = document.getElementsByTagName('script')[0];
+      fs.parentNode.insertBefore(_script, fs);
+
+    }
+  };
+
+  var saveModule = function(modName, params, callback) {
+    var mod, loadCallback;
+
+    if (moduleCache.hasOwnProperty(modName)) {
+      console.log("%c" + modName, "color:green", "模块已加载完成,开始改变加载状态值");
+      mod = moduleCache[modName];
+      mod.status = 'loaded';
+      //输出项
+      //这里的callback就是定义模块时的第二个参数：回调函数，这个回调函数在依赖的和自身加载完后执行，参数就是其依赖模块，执行后的值就是该模块向外暴露的东西
+      mod.export = callback ? callback(params) : null;
+
+      //解除父类依赖，这里事实上使用事件监听较好
+      while (loadCallback = mod.onload.shift()) {
+        console.log("%c" + modName, "color:green", "开始解除依赖,参数为自身模块export:", mod.export);
+        loadCallback(mod.export);
+      }
+    } else {
+      callback && callback.apply(window, params);
+    }
+  };
+
+  window.require = require;
+  window.define = require;
+
+})();
