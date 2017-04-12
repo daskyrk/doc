@@ -62,6 +62,10 @@ util => []
 
 ![流程](https://ww2.sinaimg.cn/large/006tNc79gy1fejo7ldfgnj30v80v0gtw.jpg)
 
+**流程图：**
+
+![流程图](https://www.gliffy.com/go/share/image/s9s3p68e65bggs88od08.png?utm_medium=live-embed&utm_source=custom)
+
 
 
 调用完主模块后，全局对象上就已经有了require和define方法：
