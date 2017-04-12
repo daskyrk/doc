@@ -9,19 +9,17 @@
     var i, len, isEmpty = false, modName;
 
     //获取当前正在执行的js代码段，这个在onLoad事件之前执行
-    modName = document.currentScript && document.currentScript.id || 'REQUIRE_MAIN';
+    modName = document.currentScript && document.currentScript.id || 'MAIN';
 
     //简单实现，这里未做参数检查，只考虑数组的情况
     if (deps.length) {
       for (i = 0, len = deps.length; i < len; i++) {
-        console.info("开始处理模块:" + modName, "循环:", i, " 依赖模块:", deps[i]);
-        //这里为啥用立即执行函数？
-        //使用IFEE是因为要保存当前加载模块时的depCount依赖数
+        //依赖加一
+        depCount++;
+        console.info("开始处理模块:" + modName, "当前模块依赖数:", depCount, "开始加载依赖模块:", deps[i]);
+        //这里为啥用立即执行函数？ 因为要保存回调中用到的i变量
         (function(i) {
-          //依赖加一
-          depCount++;
-          console.log("%c" + modName, "color:red", "模块依赖数:", depCount, "开始加载依赖模块:", deps[i]);
-          //这块回调很关键
+          //加载模块并添加完成时的回调函数
           loadMod(deps[i], function(param) {
             params[i] = param;
             depCount--;
@@ -34,7 +32,7 @@
         })(i);
       }
     } else {
-      //必须使用定时器 等当前函数执行完后再执行
+      //必须使用定时器 等当前执行栈调用完后再执行
       console.warn("%c添加定时器 saveModule: " + modName, "color:purple");
       setTimeout(function() {
         console.warn("%c定时器执行 依赖为空时saveModule: " + modName, "color:purple");
@@ -61,8 +59,8 @@
     if (moduleCache[modName]) {
       mod = moduleCache[modName];
       if (mod.status == 'loaded') {
-        console.warn("添加定时器:加载完成回调");
         console.log("%c" + modName, "color:green", "模块已加载完成,参数:", this.params);
+        console.warn("当前执行栈结束后，调用加载完成的回调");
         setTimeout(loadCallback(this.params), 0);
       } else {
         console.log("%c" + modName, "color:orange", "模块未加载完成,增加依赖回调");
